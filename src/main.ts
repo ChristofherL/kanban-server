@@ -54,6 +54,50 @@ fastify.post('/signup', async function (request, reply) {
   }
 });
 
+fastify.post('/signin', async (request, reply) => {
+  try {
+    const signinSchema = z.object({
+      email: z.string().nonempty(),
+      password: z.string().nonempty(),
+    });
+
+    const data = signinSchema.parse(request.body);
+
+    const user = await prisma.user.findFirst({ where: { email: data.email } });
+
+    if (!user) {
+      reply
+        .status(400)
+        .send({ message: 'Invalid email or password', statusCode: 400 });
+      return;
+    }
+
+    const isPasswordCorresponding = await argon2.verify(
+      user?.password,
+      data.password,
+    );
+
+    if (!isPasswordCorresponding) {
+      reply
+        .status(400)
+        .send({ message: 'Invalid email or password', statusCode: 400 });
+      return;
+    }
+
+    const privateKey = crypto.randomBytes(64).toString('hex');
+
+    const authToken = jwt.sign({ userId: user.id }, privateKey);
+
+    reply
+      .status(201)
+      .send({ message: 'success', statusCode: 201 })
+      .setCookie('authToken', authToken, { httpOnly: true });
+  } catch (err) {
+    console.log(err);
+    reply.status(500).send({ err });
+  }
+});
+
 fastify.listen({ port: 3000 }, function (err) {
   if (err) {
     fastify.log.error(err);
