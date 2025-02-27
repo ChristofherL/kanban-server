@@ -1,0 +1,14 @@
+services:
+  mysql:
+    image: mysql
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: kanban
+      MYSQL_ROOT_PASSWORD: kanban
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+volumes:
+  mysql-data:
