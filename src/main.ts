@@ -1,19 +1,44 @@
-import Fastify from 'fastify';
+import Fastify, { errorCodes } from 'fastify';
 import { z } from 'zod';
 import { prisma } from './lib/prisma';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-import cookies from '@fastify/cookie';
+import express, { NextFunction, Request, Response } from 'express';
+import fastifyExpress from '@fastify/express';
+import cookieParser from 'cookie-parser';
 
 const fastify = Fastify();
+const router = express.Router();
+express().use(cookieParser());
 
-fastify.register(cookies);
+function ensureAuthenticated(
+  request: Request,
+  reply: Response,
+  next: NextFunction,
+) {
+  const authToken = request.headers.cookie?.split('=')[1];
 
-fastify.post('/signup', async function (request, reply) {
+  if (!authToken) {
+    reply
+      .status(401)
+      .send({ message: 'token must be provided', statusCode: 401 });
+    return;
+  }
+
+  jwt.verify(authToken, process.env.PRIVATE_KEY_JWT as string, (err) => {
+    if (err) {
+      reply.status(500).send(err);
+      console.log(err);
+      return;
+    }
+    next();
+  });
+}
+
+router.post('/api/signup', async function (request, reply) {
   try {
     const signupSchema = z.object({
-      name: z.string().min(3).max(5),
+      name: z.string().min(3).max(50),
       email: z.string().email().max(254),
       password: z.string().min(8),
     });
