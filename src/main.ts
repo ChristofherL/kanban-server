@@ -1,8 +1,8 @@
 import Fastify, { errorCodes } from 'fastify';
-import { z } from 'zod';
+import { string, z } from 'zod';
 import { prisma } from './lib/prisma';
 import argon2 from 'argon2';
-import jwt from 'jsonwebtoken';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 import express, { NextFunction, Request, Response } from 'express';
 import fastifyExpress from '@fastify/express';
 import cookieParser from 'cookie-parser';
@@ -16,7 +16,7 @@ function ensureAuthenticated(
   reply: Response,
   next: NextFunction,
 ) {
-  const authToken = request.headers.cookie?.split('=')[1];
+  const authToken = extractJwtFromCookies(request.headers.cookie);
 
   if (!authToken) {
     reply
@@ -33,6 +33,10 @@ function ensureAuthenticated(
     }
     next();
   });
+}
+
+function extractJwtFromCookies(cookie?: string) {
+  return cookie?.split('=')[1];
 }
 
 router.post('/api/signup', async function (request, reply) {
@@ -65,21 +69,21 @@ router.post('/api/signup', async function (request, reply) {
       },
     });
 
-    const privateKey = crypto.randomBytes(64).toString('hex');
-
-    const authToken = jwt.sign({ userId: createdUser.id }, privateKey);
+    const authToken = jwt.sign(
+      { userId: createdUser.id },
+      process.env.PRIVATE_KEY_JWT as string,
+    );
 
     reply
-      .status(201)
-      .send({ message: 'success', statusCode: 201 })
-      .setCookie('authToken', authToken, { httpOnly: true });
+      .setHeader('set-cookie', `authToken=${authToken}; HttpOnly`)
+      .send({ message: 'success', statusCode: 201 });
   } catch (err) {
     console.log(err);
     reply.send({ err });
   }
 });
 
-fastify.post('/signin', async (request, reply) => {
+router.post('/api/signin', async (request, reply) => {
   try {
     const signinSchema = z.object({
       email: z.string().nonempty(),
@@ -97,35 +101,54 @@ fastify.post('/signin', async (request, reply) => {
       return;
     }
 
-    const isPasswordCorresponding = await argon2.verify(
-      user?.password,
-      data.password,
-    );
+    const isPasswordMatch = await argon2.verify(user?.password, data.password);
 
-    if (!isPasswordCorresponding) {
+    if (!isPasswordMatch) {
       reply
         .status(400)
         .send({ message: 'Invalid email or password', statusCode: 400 });
       return;
     }
 
-    const privateKey = crypto.randomBytes(64).toString('hex');
-
-    const authToken = jwt.sign({ userId: user.id }, privateKey);
+    const authToken = jwt.sign(
+      { userId: user.id },
+      process.env.PRIVATE_KEY_JWT as string,
+    );
 
     reply
-      .status(201)
-      .send({ message: 'success', statusCode: 201 })
-      .setCookie('authToken', authToken, { httpOnly: true });
+      .setHeader('set-cookie', `authToken=${authToken}; HttpOnly`)
+      .send({ message: 'success', statusCode: 201 });
   } catch (err) {
     console.log(err);
     reply.status(500).send({ err });
   }
 });
 
-fastify.listen({ port: 3000 }, function (err) {
-  if (err) {
-    fastify.log.error(err);
+router.get('/api/me', ensureAuthenticated, async (request, reply) => {
+  try {
+    const token = extractJwtFromCookies(request.headers.cookie);
+
+    const payload = jwt.verify(
+      token!,
+      process.env.PRIVATE_KEY_JWT as string,
+    ) as JwtPayload & { userId: string };
+
+    const currentUser = await prisma.user.findFirst({
+      where: { id: payload.userId },
+    });
+
+    reply.status(200).send({ ...currentUser });
+  } catch (err) {
+    console.log(err);
+    reply.status(500).send({ err });
   }
-  console.log(`Server is now listening on 3000`);
 });
+
+fastify.register(fastifyExpress).after(() => {
+  fastify.use(express.urlencoded({ extended: false }));
+  fastify.use(express.json());
+
+  fastify.use(router);
+});
+
+fastify.listen({ port: 3000 }, console.log);
