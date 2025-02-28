@@ -3,7 +3,7 @@ import { string, z } from 'zod';
 import { prisma } from './lib/prisma';
 import argon2 from 'argon2';
 import jwt, { JwtPayload } from 'jsonwebtoken';
-import express, { NextFunction, Request, Response } from 'express';
+import express, { NextFunction, Request, response, Response } from 'express';
 import fastifyExpress from '@fastify/express';
 import cookieParser from 'cookie-parser';
 
@@ -138,6 +138,35 @@ router.get('/api/me', ensureAuthenticated, async (request, reply) => {
     });
 
     reply.status(200).send({ ...currentUser });
+  } catch (err) {
+    console.log(err);
+    reply.status(500).send({ err });
+  }
+});
+
+router.post('/api/boards', ensureAuthenticated, async (request, reply) => {
+  try {
+    const boardSchema = z.object({
+      name: z.string().min(4),
+      userId: z.string().nonempty(),
+    });
+
+    const data = boardSchema.parse(request.body);
+
+    const board = await prisma.board.findFirst({
+      where: { name: data.name, AND: { userId: data.userId } },
+    });
+
+    if (board) {
+      reply.status(400).send({
+        message: 'You already have a board with that name!',
+        statusCode: 400,
+      });
+    }
+
+    const createdBoard = await prisma.board.create({ data });
+
+    reply.status(201).send(createdBoard);
   } catch (err) {
     console.log(err);
     reply.status(500).send({ err });
