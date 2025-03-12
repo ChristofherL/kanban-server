@@ -162,11 +162,46 @@ router.post('/api/boards', ensureAuthenticated, async (request, reply) => {
         message: 'You already have a board with that name!',
         statusCode: 400,
       });
+      return;
     }
 
     const createdBoard = await prisma.board.create({ data });
 
     reply.status(201).send(createdBoard);
+  } catch (err) {
+    console.log(err);
+    reply.status(500).send({ err });
+  }
+});
+
+router.post('/api/status', ensureAuthenticated, async (request, reply) => {
+  try {
+    const statusSchema = z.object({
+      name: z.string().min(4),
+      boardId: z.string().nonempty(),
+      userId: z.string().nonempty(),
+    });
+
+    const data = statusSchema.parse(request.body);
+
+    const status = await prisma.status.findFirst({
+      where: {
+        name: data.name,
+        AND: { boardId: data.boardId, AND: { userId: data.userId } },
+      },
+    });
+
+    if (status) {
+      reply.status(400).send({
+        message: 'You already have a status with that name!',
+        statusCode: 400,
+      });
+      return;
+    }
+
+    const createdStatus = await prisma.status.create({ data });
+
+    reply.status(201).send(createdStatus);
   } catch (err) {
     console.log(err);
     reply.status(500).send({ err });

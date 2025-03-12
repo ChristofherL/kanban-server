@@ -1,5 +1,5 @@
 services:
-  mysql:
+  db:
     image: mysql
     restart: always
     ports:

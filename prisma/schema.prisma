@@ -19,6 +19,9 @@ model user {
   email String @unique
   password String
   board board[]
+  status  status[]
+  task task[]
+  subtask subtask[]
 }
 
 model board {
@@ -34,6 +37,8 @@ model status {
   name String
   board board? @relation(fields: [boardId], references: [id] )
   boardId String?
+  user user? @relation(fields: [userId], references: [id])
+  userId String?
   task task[]
 }
 
@@ -44,6 +49,8 @@ model task {
   status status? @relation(fields: [statusId], references: [id])
   statusId String?
   subtask subtask[]
+  user user? @relation(fields: [userId], references: [id])
+  userId String?
 }
 
 model subtask {
@@ -52,4 +59,6 @@ model subtask {
   done Boolean
   task task? @relation(fields: [taskId], references: [id])
   taskId String?
+  user user? @relation(fields: [userId], references: [id])
+  userId String?
 }
