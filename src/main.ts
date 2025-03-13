@@ -267,6 +267,69 @@ router.get(
   },
 );
 
+router.get(
+  '/api/board/:boardId',
+  ensureAuthenticated,
+  async (request, reply) => {
+    const board: Board[] = await prisma.$queryRaw`
+    SELECT
+      board.id,
+      board.name,
+      JSON_ARRAYAGG(
+        JSON_OBJECT(
+          "id",
+          status.id,
+          "name",
+          status.name,
+          "tasks",
+          (
+            SELECT
+              JSON_ARRAYAGG(
+                JSON_OBJECT(
+                  "id",
+                  task.id,
+                  "title",
+                  task.title,
+                  "subtasks",
+                  (
+                    SELECT
+                      JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                          "id",
+                          subtask.id,
+                          "title",
+                          subtask.name,
+                          "done",
+                          subtask.done
+                        )
+                      )
+                    FROM
+                      subtask
+                    WHERE
+                      subtask.taskId = task.id
+                  )
+                )
+              )
+            FROM
+              task
+            WHERE
+              task.statusId = status.id
+          )
+        )
+      ) AS columns
+    FROM
+      board
+      LEFT JOIN status ON board.id = status.boardId
+    WHERE
+      board.id = ${request.params.boardId}
+    GROUP BY
+      board.id
+  `;
+
+    reply.send(board[0]);
+  },
+);
+
 fastify.register(fastifyExpress).after(() => {
   fastify.use(express.urlencoded({ extended: false }));
   fastify.use(express.json());
