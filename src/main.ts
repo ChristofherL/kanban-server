@@ -1,12 +1,12 @@
-import Fastify, { errorCodes } from 'fastify';
-import { string, z } from 'zod';
+import Fastify from 'fastify';
+import { z } from 'zod';
 import { prisma } from './lib/prisma';
 import argon2 from 'argon2';
 import jwt, { JwtPayload } from 'jsonwebtoken';
-import express, { NextFunction, Request, response, Response } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import fastifyExpress from '@fastify/express';
 import cookieParser from 'cookie-parser';
-import { request } from 'http';
+import { Board } from './types/Board';
 
 const fastify = Fastify();
 const router = express.Router();
@@ -250,6 +250,22 @@ router.post('/api/subtask', ensureAuthenticated, async (request, reply) => {
     reply.status(500).send({ err });
   }
 });
+
+router.get(
+  '/api/board/user/:userId',
+  ensureAuthenticated,
+  async (request, reply) => {
+    try {
+      const boards = await prisma.board.findMany({
+        where: { userId: request.params.userId },
+      });
+      reply.send(boards);
+    } catch (err) {
+      console.log(err);
+      reply.status(500).send(err);
+    }
+  },
+);
 
 fastify.register(fastifyExpress).after(() => {
   fastify.use(express.urlencoded({ extended: false }));
