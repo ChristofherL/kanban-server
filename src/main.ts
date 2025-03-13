@@ -144,7 +144,7 @@ router.get('/api/me', ensureAuthenticated, async (request, reply) => {
   }
 });
 
-router.post('/api/boards', ensureAuthenticated, async (request, reply) => {
+router.post('/api/board', ensureAuthenticated, async (request, reply) => {
   try {
     const boardSchema = z.object({
       name: z.string().min(4),
@@ -202,6 +202,26 @@ router.post('/api/status', ensureAuthenticated, async (request, reply) => {
     const createdStatus = await prisma.status.create({ data });
 
     reply.status(201).send(createdStatus);
+  } catch (err) {
+    console.log(err);
+    reply.status(500).send({ err });
+  }
+});
+
+router.post('/api/task', ensureAuthenticated, async (request, reply) => {
+  try {
+    const statusSchema = z.object({
+      title: z.string().min(4),
+      description: z.string(),
+      statusId: z.string().nonempty(),
+      userId: z.string().nonempty(),
+    });
+
+    const data = statusSchema.parse(request.body);
+
+    const createdTask = await prisma.task.create({ data });
+
+    reply.status(201).send(createdTask);
   } catch (err) {
     console.log(err);
     reply.status(500).send({ err });
