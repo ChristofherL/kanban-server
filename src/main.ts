@@ -6,6 +6,7 @@ import jwt, { JwtPayload } from 'jsonwebtoken';
 import express, { NextFunction, Request, response, Response } from 'express';
 import fastifyExpress from '@fastify/express';
 import cookieParser from 'cookie-parser';
+import { request } from 'http';
 
 const fastify = Fastify();
 const router = express.Router();
@@ -222,6 +223,28 @@ router.post('/api/task', ensureAuthenticated, async (request, reply) => {
     const createdTask = await prisma.task.create({ data });
 
     reply.status(201).send(createdTask);
+  } catch (err) {
+    console.log(err);
+    reply.status(500).send({ err });
+  }
+});
+
+router.post('/api/subtask', ensureAuthenticated, async (request, reply) => {
+  try {
+    const subtaskSchema = z.array(
+      z.object({
+        name: z.string().min(4),
+        done: z.boolean(),
+        taskId: z.string().nonempty(),
+        userId: z.string().nonempty(),
+      }),
+    );
+
+    const data = subtaskSchema.parse(request.body);
+
+    await prisma.subtask.createMany({ data });
+
+    reply.status(201).end();
   } catch (err) {
     console.log(err);
     reply.status(500).send({ err });
